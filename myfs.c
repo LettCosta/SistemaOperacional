@@ -16,15 +16,32 @@
 #include "util.h"
 
 //Declaracoes globais
-//...
-//...
+typedef struct {
+	int used; // 1 = em uso, 0 = livre
+	int isDir; // 1 = diretorio, 0 = arquivo
+	unsigned int inodeNumber; // numero do inode 
+	unsigned int cursor; // posicao do cursor, em bytes
+} MyFSFileDescriptor; 
+
+
+
+static MyFSFileDescriptor fdTable[MAX_FDS]; //max_fds é uma variavel la do vfs.h que define o numero maximo de descritores de arquivos que podem ser abertos ao mesmo tempo, q é 128
+static unsigned int openCount = 0; //esse eh o total de descritores abertos
+
 
 
 //Funcao para verificacao se o sistema de arquivos está ocioso, ou seja,
 //se nao ha quisquer descritores de arquivos em uso atualmente. Retorna
 //um positivo se ocioso ou, caso contrario, 0.
 int myFSIsIdle (Disk *d) {
-	return 0;
+	if (openCount == 0) return 1;  //se não tiver descritores abertos (em uso), está ocioso e por isso retorna 1
+		
+	//agora vou checar a tabela de descritores pra ver se algum está em uso, pra garantir a consistencia, e se tiver em uso, retorna 0
+	for (int i = 0; i < MAX_FDS; i++) {
+		if (fdTable[i].used == 1) return 0; 
+	}
+
+	return 1; //se chegou aqui, é pq nenhum descritor está em uso, então retorna 1
 }
 
 //Funcao para formatacao de um disco com o novo sistema de arquivos
@@ -83,6 +100,7 @@ int myFSClose (int fd) {
 //criando o diretorio se nao existir. Retorna um descritor de arquivo,
 //em caso de sucesso. Retorna -1, caso contrario.
 int myFSOpenDir (Disk *d, const char *path) {
+	//qm for fzr esse, lembra de ao entregar um fd, marcar fileDescriptors[fd-1].used = 1
 	return -1;
 }
 
@@ -124,5 +142,20 @@ int myFSCloseDir (int fd) {
 //o sistema de arquivos tenha sido registrado com sucesso.
 //Caso contrario, retorna -1
 int installMyFS (void) {
-	return -1;
+	FSInfo fsInfo;
+	fsInfo.fsid = 1;
+	fsInfo.fsname = "MyFS";
+	fsInfo.isidleFn = myFSIsIdle;
+	fsInfo.formatFn = myFSFormat;
+	fsInfo.xMountFn = myFSxMount;
+	fsInfo.openFn = myFSOpen;
+	fsInfo.readFn = myFSRead;
+	fsInfo.writeFn = myFSWrite;
+	fsInfo.closeFn = myFSClose;
+	fsInfo.opendirFn = myFSOpenDir;
+	fsInfo.readdirFn = myFSReadDir;
+	fsInfo.linkFn = myFSLink;
+	fsInfo.unlinkFn = myFSUnlink;
+	fsInfo.closedirFn = myFSCloseDir;
+	return vfsRegisterFS(&fsInfo);
 }

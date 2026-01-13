@@ -1,0 +1,38 @@
+[
+{
+  "directory": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/build",
+  "command": "C:\\MinGW\\bin\\gcc.exe   -g -o CMakeFiles\\untitled.dir\\main.c.obj -c C:\\Users\\letic\\Downloads\\DCC062-TP-myFS-20260106T004244Z-1-001\\DCC062-TP-myFS\\main.c",
+  "file": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/main.c",
+  "output": "CMakeFiles/untitled.dir/main.c.obj"
+},
+{
+  "directory": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/build",
+  "command": "C:\\MinGW\\bin\\gcc.exe   -g -o CMakeFiles\\untitled.dir\\disk.c.obj -c C:\\Users\\letic\\Downloads\\DCC062-TP-myFS-20260106T004244Z-1-001\\DCC062-TP-myFS\\disk.c",
+  "file": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/disk.c",
+  "output": "CMakeFiles/untitled.dir/disk.c.obj"
+},
+{
+  "directory": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/build",
+  "command": "C:\\MinGW\\bin\\gcc.exe   -g -o CMakeFiles\\untitled.dir\\vfs.c.obj -c C:\\Users\\letic\\Downloads\\DCC062-TP-myFS-20260106T004244Z-1-001\\DCC062-TP-myFS\\vfs.c",
+  "file": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/vfs.c",
+  "output": "CMakeFiles/untitled.dir/vfs.c.obj"
+},
+{
+  "directory": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/build",
+  "command": "C:\\MinGW\\bin\\gcc.exe   -g -o CMakeFiles\\untitled.dir\\inode.c.obj -c C:\\Users\\letic\\Downloads\\DCC062-TP-myFS-20260106T004244Z-1-001\\DCC062-TP-myFS\\inode.c",
+  "file": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/inode.c",
+  "output": "CMakeFiles/untitled.dir/inode.c.obj"
+},
+{
+  "directory": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/build",
+  "command": "C:\\MinGW\\bin\\gcc.exe   -g -o CMakeFiles\\untitled.dir\\myfs.c.obj -c C:\\Users\\letic\\Downloads\\DCC062-TP-myFS-20260106T004244Z-1-001\\DCC062-TP-myFS\\myfs.c",
+  "file": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/myfs.c",
+  "output": "CMakeFiles/untitled.dir/myfs.c.obj"
+},
+{
+  "directory": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/build",
+  "command": "C:\\MinGW\\bin\\gcc.exe   -g -o CMakeFiles\\untitled.dir\\util.c.obj -c C:\\Users\\letic\\Downloads\\DCC062-TP-myFS-20260106T004244Z-1-001\\DCC062-TP-myFS\\util.c",
+  "file": "C:/Users/letic/Downloads/DCC062-TP-myFS-20260106T004244Z-1-001/DCC062-TP-myFS/util.c",
+  "output": "CMakeFiles/untitled.dir/util.c.obj"
+}
+]
