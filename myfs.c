@@ -259,7 +259,100 @@ int myFSxMount (Disk *d, int x) {
 //criando o arquivo se nao existir. Retorna um descritor de arquivo,
 //em caso de sucesso. Retorna -1, caso contrario.
 int myFSOpen (Disk *d, const char *path) {
-	return -1;
+    // 1. Verificações Básicas
+    if (!d || !path) return -1;
+    if (sb.magic != MYFS_MAGIC) return -1; // Sistema não montado ou inválido
+    if (openCount >= MAX_FDS) return -1;   // Tabela cheia
+
+    // 2. Cópia do path (strtok modifica a string original)
+    char pathCopy[MAX_FILENAME_LENGTH + 1];
+    strncpy(pathCopy, path, MAX_FILENAME_LENGTH);
+    pathCopy[MAX_FILENAME_LENGTH] = '\0';
+
+    if (strcmp(pathCopy, "/") == 0) return -1; // Não pode abrir raiz como arquivo
+
+    // 3. Navegação pelos diretórios
+    unsigned int currentInode = sb.rootInode;
+    unsigned int parentInode = 0;
+    
+    char *token = strtok(pathCopy, "/");
+    char filename[MAX_FILENAME_LENGTH + 1];
+
+    while (token != NULL) {
+        strncpy(filename, token, MAX_FILENAME_LENGTH);
+        filename[MAX_FILENAME_LENGTH] = '\0';
+        
+        parentInode = currentInode;
+        
+        // Procura o token atual no diretório corrente
+        unsigned int nextInode = __findInodeInDir(d, currentInode, filename);
+        
+        // Verifica o próximo token para saber se este é o último (arquivo) ou pasta
+        char *nextToken = strtok(NULL, "/");
+
+        if (nextInode != 0) {
+            // Encontrou: desce para o próximo nível
+            currentInode = nextInode;
+        } else {
+            // Não encontrou
+            if (nextToken == NULL) {
+                // É o último item do caminho (o arquivo). Devemos CRIAR.
+                
+                // A. Encontra inode livre no disco
+                unsigned int freeInodeNum = inodeFindFreeInode(1, d);
+                if (freeInodeNum == 0) return -1; // Disco cheio
+
+                // B. Cria e configura o novo inode
+                Inode *newFile = inodeCreate(freeInodeNum, d);
+                if (!newFile) return -1;
+
+                inodeSetFileType(newFile, FILETYPE_REGULAR);
+                inodeSetOwner(newFile, 0); // Define dono padrão (root/0)
+                inodeSetFileSize(newFile, 0);
+                
+                if (inodeSave(newFile) < 0) {
+                    free(newFile);
+                    return -1;
+                }
+                free(newFile);
+
+                // C. Adiciona entrada no diretório pai
+                if (__addEntryToDir(d, parentInode, freeInodeNum, filename, &sb) < 0) {
+                    return -1; // Falha ao escrever no diretório
+                }
+                
+                currentInode = freeInodeNum; // O arquivo aberto é o novo inode
+            } else {
+                // Caminho inválido (diretório intermediário não existe)
+                return -1;
+            }
+        }
+        token = nextToken;
+    }
+
+    // 4. Verificação Final: É arquivo mesmo?
+    Inode *targetInode = inodeLoad(currentInode, d);
+    if (!targetInode) return -1;
+
+    if (inodeGetFileType(targetInode) == FILETYPE_DIR) {
+        free(targetInode);
+        return -1; // Erro: Tentou abrir diretório com myFSOpen (use myFSOpenDir)
+    }
+    free(targetInode);
+
+    // 5. Alocação na Tabela de Descritores (fdTable)
+    for (int i = 0; i < MAX_FDS; i++) {
+        if (fdTable[i].used == 0) {
+            fdTable[i].used = 1;
+            fdTable[i].isDir = 0;
+            fdTable[i].inodeNumber = currentInode;
+            fdTable[i].cursor = 0;
+            openCount++;
+            return i + 1; // Retorna FD (índice + 1, padrão POSIX/VFS)
+        }
+    }
+
+    return -1; // Caso raro: openCount estava ok, mas não achou slot (inconsistência)
 }
 	
 //Funcao para a leitura de um arquivo, a partir de um descritor de arquivo
