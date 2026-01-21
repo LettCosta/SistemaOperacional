@@ -34,6 +34,7 @@ typedef struct {
 
 static MyFSFileDescriptor fdTable[MAX_FDS]; //max_fds é uma variavel la do vfs.h que define o numero maximo de descritores de arquivos que podem ser abertos ao mesmo tempo, q é 128
 static unsigned int openCount = 0; //esse eh o total de descritores abertos
+static Superblock sb;
 
 // Implementação das funções auxiliares
 static int __saveSuperblock(Disk *d, Superblock *sb) {
@@ -214,7 +215,43 @@ int myFSFormat (Disk *d, unsigned int blockSize) {
 //de gravacao devem ser persistidos no disco. Retorna um positivo se a
 //montagem ou desmontagem foi bem sucedida ou, caso contrario, 0.
 int myFSxMount (Disk *d, int x) {
-	return 0;
+    if (x == 1) { 
+        
+        
+        //carrega o Superbloco do disco para a memória
+        if (__loadSuperblock(d, &sb) < 0) {
+            return 0; // falha na leitura
+        }
+
+        //verificação de sanidade (Magic Number)
+        //garante que o disco foi formatado com MyFS antes de montar
+        if (sb.magic != MYFS_MAGIC) {
+            return 0; // disco não formatado ou corrompido
+        }
+
+        //inicializa as estruturas em memória (Limpa tabela de descritores)
+        //garante que não haja lixo de execuções anteriores
+        for (int i = 0; i < MAX_FDS; i++) {
+            fdTable[i].used = 0;
+            fdTable[i].inodeNumber = 0;
+            fdTable[i].cursor = 0;
+        }
+        openCount = 0;
+
+        return 1; // deu tudo certo na montagem
+
+    } else {
+       // desmonta
+        
+        // persistir o Superbloco
+        // se houver mapas de bits ou contadores alterados, salva
+        if (__saveSuperblock(d, &sb) < 0) {
+            return 0; // falha na escrita
+        }
+
+
+        return 1; // deu tudo certo na desmontagem
+    }
 }
 
 //Funcao para abertura de um arquivo, a partir do caminho especificado
