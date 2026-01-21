@@ -285,7 +285,37 @@ int myFSWrite (int fd, const char *buf, unsigned int nbytes) {
 //Funcao para fechar um arquivo, a partir de um descritor de arquivo
 //existente. Retorna 0 caso bem sucedido, ou -1 caso contrario
 int myFSClose (int fd) {
-	return -1;
+	// conversão do FD do VFS (1-based) para o índice do array (0-based)
+    int index = fd - 1;
+
+    // verificação de limites: O índice é válido dentro do array?
+    if (index < 0 || index >= MAX_FDS) {
+        return -1;
+    }
+
+    // verificação de estado: O arquivo está realmente aberto?
+    // se used for 0, significa que este FD já está fechado ou nunca foi usado.
+    if (fdTable[index].used == 0) {
+        return -1;
+    }
+
+    // verifica se é não é um diretório
+    // se quiser ser estrito: if (fdTable[index].isDir == 1) return -1;
+    
+    //"fecha" o arquivo limpando a flag de uso
+    fdTable[index].used = 0;
+
+    
+    fdTable[index].inodeNumber = 0;
+    fdTable[index].cursor = 0;
+    fdTable[index].isDir = 0;
+
+    //decrementa o contador global de arquivos abertos
+    if (openCount > 0) {
+        openCount--;
+    }
+
+    return 0;
 }
 
 //Funcao para abertura de um diretorio, a partir do caminho
