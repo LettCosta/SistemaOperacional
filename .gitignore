@@ -1,0 +1,16 @@
+
+*.o
+
+*.exe
+untitled
+
+
+build/
+
+
+.idea/
+.vscode/
+
+
+*.dsk
+*.disk
