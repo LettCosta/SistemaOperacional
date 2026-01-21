@@ -76,7 +76,64 @@ int myFSOpen (Disk *d, const char *path) {
 //do próximo byte apos o ultimo lido. Retorna o numero de bytes
 //efetivamente lidos em caso de sucesso ou -1, caso contrario.
 int myFSRead (int fd, char *buf, unsigned int nbytes) {
-	return -1;
+	// Verifica se o descritor é válido e está em uso
+	if (fd < 0 || fd >= MAX_FDS || fdTable[fd].used == 0 || fdTable[fd].isDir == 1) {
+		return -1;
+	}
+
+	unsigned int inodeNumber = fdTable[fd].inodeNumber;
+	unsigned int cursor = fdTable[fd].cursor;
+
+	// Carrega o inode do arquivo
+	Inode *inode = inodeLoad(inodeNumber, NULL); // O Disk* pode ser recuperado conforme implementação
+	if (inode == NULL) {
+		return -1;
+	}
+
+	unsigned int fileSize = inodeGetFileSize(inode);
+	if (cursor >= fileSize) {
+		return 0; // Nada para ler
+	}
+
+	unsigned int bytesToRead = nbytes;
+	if (cursor + nbytes > fileSize) {
+		bytesToRead = fileSize - cursor;
+	}
+
+	unsigned int bytesRead = 0;
+	unsigned int blockSize = DISK_SECTORDATASIZE; // Tamanho do setor
+	unsigned int blockNum = cursor / blockSize;
+	unsigned int blockOffset = cursor % blockSize;
+
+	while (bytesRead < bytesToRead) {
+		unsigned int blockAddr = inodeGetBlockAddr(inode, blockNum);
+		if (blockAddr == 0) {
+			break;
+		}
+
+		unsigned char sectorData[DISK_SECTORDATASIZE];
+		if (diskReadSector(NULL, blockAddr, sectorData) != 0) { // Disk* deve ser recuperado
+			break;
+		}
+
+		unsigned int toCopy = blockSize - blockOffset;
+		if (toCopy > (bytesToRead - bytesRead)) {
+			toCopy = bytesToRead - bytesRead;
+		}
+
+		memcpy(buf + bytesRead, sectorData + blockOffset, toCopy);
+		bytesRead += toCopy;
+		blockNum++;
+		blockOffset = 0;
+	}
+
+	fdTable[fd].cursor += bytesRead;
+
+	if (bytesRead == 0) {
+		return -1;
+	}
+
+	return bytesRead;
 }
 
 //Funcao para a escrita de um arquivo, a partir de um descritor de arquivo
@@ -86,7 +143,68 @@ int myFSRead (int fd, char *buf, unsigned int nbytes) {
 //proximo byte apos o ultimo escrito. Retorna o numero de bytes
 //efetivamente escritos em caso de sucesso ou -1, caso contrario
 int myFSWrite (int fd, const char *buf, unsigned int nbytes) {
-	return -1;
+	// Verifica se o descritor é válido e está em uso
+	if (fd < 0 || fd >= MAX_FDS || fdTable[fd].used == 0 || fdTable[fd].isDir == 1) {
+		return -1;
+	}
+
+	unsigned int inodeNumber = fdTable[fd].inodeNumber;
+	unsigned int cursor = fdTable[fd].cursor;
+
+	// Carrega o inode do arquivo
+	Inode *inode = inodeLoad(inodeNumber, NULL); // O Disk* pode ser recuperado conforme implementação
+	if (inode == NULL) {
+		return -1;
+	}
+
+	unsigned int fileSize = inodeGetFileSize(inode);
+	unsigned int blockSize = DISK_SECTORDATASIZE;
+	unsigned int bytesToWrite = nbytes;
+
+	unsigned int bytesWritten = 0;
+	unsigned int blockNum = cursor / blockSize;
+	unsigned int blockOffset = cursor % blockSize;
+
+	while (bytesWritten < bytesToWrite) {
+		unsigned int blockAddr = inodeGetBlockAddr(inode, blockNum);
+		if (blockAddr == 0) {
+			// Se não há bloco, pode ser necessário alocar um novo bloco (não implementado aqui)
+			break;
+		}
+
+		unsigned char sectorData[DISK_SECTORDATASIZE];
+		if (diskReadSector(NULL, blockAddr, sectorData) != 0) { // Disk* deve ser recuperado
+			break;
+		}
+
+		unsigned int toCopy = blockSize - blockOffset;
+		if (toCopy > (bytesToWrite - bytesWritten)) {
+			toCopy = bytesToWrite - bytesWritten;
+		}
+
+		memcpy(sectorData + blockOffset, buf + bytesWritten, toCopy);
+		if (diskWriteSector(NULL, blockAddr, sectorData) != 0) {
+			break;
+		}
+
+		bytesWritten += toCopy;
+		blockNum++;
+		blockOffset = 0;
+	}
+
+	fdTable[fd].cursor += bytesWritten;
+
+	// Atualiza o tamanho do arquivo se necessário
+	if (cursor + bytesWritten > fileSize) {
+		inodeSetFileSize(inode, cursor + bytesWritten);
+		inodeSave(inode);
+	}
+
+	if (bytesWritten == 0) {
+		return -1;
+	}
+
+	return bytesWritten;
 }
 
 //Funcao para fechar um arquivo, a partir de um descritor de arquivo
