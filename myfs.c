@@ -10,10 +10,17 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "myfs.h"
 #include "vfs.h"
 #include "inode.h"
 #include "util.h"
+
+// Declarações de funções auxiliares privadas
+static int __saveSuperblock(Disk *d, Superblock *sb);
+static int __loadSuperblock(Disk *d, Superblock *sb);
+static unsigned int __findInodeInDir(Disk *d, unsigned int dirInodeNum, const char *filename);
+static int __addEntryToDir(Disk *d, unsigned int dirInodeNum, unsigned int fileInodeNum, const char *filename, Superblock *sb);
 
 //Declaracoes globais
 typedef struct {
@@ -28,6 +35,51 @@ typedef struct {
 static MyFSFileDescriptor fdTable[MAX_FDS]; //max_fds é uma variavel la do vfs.h que define o numero maximo de descritores de arquivos que podem ser abertos ao mesmo tempo, q é 128
 static unsigned int openCount = 0; //esse eh o total de descritores abertos
 
+// Implementação das funções auxiliares
+static int __saveSuperblock(Disk *d, Superblock *sb) {
+    unsigned char sector[DISK_SECTORDATASIZE];
+    memset(sector, 0, DISK_SECTORDATASIZE);
+    
+    // Converter estrutura Superblock para bytes e escrever no setor 0
+    unsigned char *ptr = sector;
+    ul2char(sb->magic, (unsigned char*)ptr); ptr += sizeof(unsigned int);
+    ul2char(sb->blockSize, (unsigned char*)ptr); ptr += sizeof(unsigned int);
+    ul2char(sb->numBlocks, (unsigned char*)ptr); ptr += sizeof(unsigned int);
+    ul2char(sb->freeMapSector, (unsigned char*)ptr); ptr += sizeof(unsigned int);
+    ul2char(sb->freeMapSize, (unsigned char*)ptr); ptr += sizeof(unsigned int);
+    ul2char(sb->dataStartSector, (unsigned char*)ptr); ptr += sizeof(unsigned int);
+    ul2char(sb->rootInode, (unsigned char*)ptr); ptr += sizeof(unsigned int);
+    
+    return diskWriteSector(d, 0, sector);
+}
+
+static int __loadSuperblock(Disk *d, Superblock *sb) {
+    unsigned char sector[DISK_SECTORDATASIZE];
+    
+    if (diskReadSector(d, 0, sector) < 0) return -1;
+    
+    // Converter bytes para estrutura Superblock
+    unsigned char *ptr = sector;
+    char2ul(ptr, &sb->magic); ptr += sizeof(unsigned int);
+    char2ul(ptr, &sb->blockSize); ptr += sizeof(unsigned int);
+    char2ul(ptr, &sb->numBlocks); ptr += sizeof(unsigned int);
+    char2ul(ptr, &sb->freeMapSector); ptr += sizeof(unsigned int);
+    char2ul(ptr, &sb->freeMapSize); ptr += sizeof(unsigned int);
+    char2ul(ptr, &sb->dataStartSector); ptr += sizeof(unsigned int);
+    char2ul(ptr, &sb->rootInode); ptr += sizeof(unsigned int);
+    
+    return 0;
+}
+
+static unsigned int __findInodeInDir(Disk *d, unsigned int dirInodeNum, const char *filename) {
+    // Função stub - implementação futura
+    return 0;
+}
+
+static int __addEntryToDir(Disk *d, unsigned int dirInodeNum, unsigned int fileInodeNum, const char *filename, Superblock *sb) {
+    // Função stub - implementação futura
+    return 0;
+}
 
 
 //Funcao para verificacao se o sistema de arquivos está ocioso, ou seja,
@@ -49,7 +101,111 @@ int myFSIsIdle (Disk *d) {
 //blocos disponiveis no disco, se formatado com sucesso. Caso contrario,
 //retorna -1.
 int myFSFormat (Disk *d, unsigned int blockSize) {
-	return -1;
+    printf("[DEBUG] Iniciando myFSFormat.\n");
+
+    // Check 1: Tamanho do bloco
+    if (blockSize == 0 || (blockSize % DISK_SECTORDATASIZE != 0)) {
+        printf("[DEBUG] ERRO: BlockSize invalido (%u). Deve ser multiplo de %d.\n", blockSize, DISK_SECTORDATASIZE);
+        return -1;
+    }
+
+    unsigned long totalSectors = diskGetNumSectors(d);
+    printf("[DEBUG] Total de setores no disco: %lu\n", totalSectors);
+
+    // Se o disco for muito pequeno (ex: erro no Build), totalSectors pode ser 0
+    if (totalSectors < 100) {
+         printf("[DEBUG] ERRO: Disco muito pequeno ou nao inicializado corretamente.\n");
+         return -1;
+    }
+
+    unsigned long inodeTableSizeInBytes = MAX_INODES * (16 * sizeof(unsigned int));
+    unsigned long inodeTableSectors = (inodeTableSizeInBytes + DISK_SECTORDATASIZE - 1) / DISK_SECTORDATASIZE;
+    
+    unsigned long freeMapStartSector = inodeAreaBeginSector() + inodeTableSectors;
+    unsigned long availableSectorsForData = totalSectors - freeMapStartSector;
+    
+    // Check 2: Overflow ou disco pequeno demais para os metadados
+    if (freeMapStartSector >= totalSectors) {
+        printf("[DEBUG] ERRO: Espaco insuficiente para tabela de inodes.\n");
+        return -1;
+    }
+
+    unsigned long numBlocks = (availableSectorsForData * DISK_SECTORDATASIZE) / blockSize;
+    
+    // Check 3: Numero de blocos zero
+    if (numBlocks == 0) {
+        printf("[DEBUG] ERRO: Numero de blocos calculado resultou em 0.\n");
+        return -1;
+    }
+
+    unsigned long bitmapBytes = (numBlocks + 7) / 8;
+    unsigned long bitmapSectors = (bitmapBytes + DISK_SECTORDATASIZE - 1) / DISK_SECTORDATASIZE;
+
+    unsigned long dataStartSector = freeMapStartSector + bitmapSectors;
+    
+    printf("[DEBUG] Data Start Sector: %lu\n", dataStartSector);
+
+    // Check 4: Metadados ocupam todo o disco
+    if (dataStartSector >= totalSectors) {
+        printf("[DEBUG] ERRO: Metadados (Bitmap+Inodes) ocupam todo o disco.\n");
+        return -1;
+    }
+    
+    // Recalculo final
+    numBlocks = ((totalSectors - dataStartSector) * DISK_SECTORDATASIZE) / blockSize;
+    printf("[DEBUG] Formatacao valida. Criando %lu blocos.\n", numBlocks);
+
+    unsigned char emptySector[DISK_SECTORDATASIZE];
+    memset(emptySector, 0, DISK_SECTORDATASIZE);
+
+    // Limpezas
+    for (unsigned long i = 0; i < inodeTableSectors; i++) {
+        if (diskWriteSector(d, inodeAreaBeginSector() + i, emptySector) < 0) {
+             printf("[DEBUG] ERRO: Falha ao limpar setor de inode %lu.\n", inodeAreaBeginSector() + i);
+             return -1;
+        }
+    }
+
+    for (unsigned long i = 0; i < bitmapSectors; i++) {
+        diskWriteSector(d, freeMapStartSector + i, emptySector);
+    }
+
+    // Superbloco
+    Superblock sb;
+    sb.magic = MYFS_MAGIC;
+    sb.blockSize = blockSize;
+    sb.numBlocks = numBlocks;
+    sb.freeMapSector = freeMapStartSector;
+    sb.freeMapSize = bitmapSectors;
+    sb.dataStartSector = dataStartSector;
+    sb.rootInode = 1;
+
+    // Check 5: Salvar Superbloco
+    if (__saveSuperblock(d, &sb) < 0) {
+        printf("[DEBUG] ERRO: Falha ao gravar o Superbloco.\n");
+        return -1;
+    }
+
+    // Check 6: Criar Inode Raiz
+    Inode *root = inodeCreate(1, d);
+    if (!root) {
+        printf("[DEBUG] ERRO: Falha ao criar o Inode Raiz (inodeCreate retornou NULL).\n");
+        return -1;
+    }
+    
+    inodeSetFileType(root, FILETYPE_DIR);
+    inodeSetOwner(root, 1000); 
+    inodeSetFileSize(root, 0); 
+    
+    if (inodeSave(root) < 0) {
+         printf("[DEBUG] ERRO: Falha ao salvar o Inode Raiz no disco.\n");
+         free(root);
+         return -1;
+    }
+    free(root);
+
+    printf("[DEBUG] Sucesso! Retornando %lu blocos.\n", numBlocks);
+    return numBlocks;
 }
 
 //Funcao para montagem/desmontagem do sistema de arquivos, se possível.
@@ -141,8 +297,10 @@ int myFSCloseDir (int fd) {
 //ao virtual FS (vfs). Retorna um identificador unico (slot), caso
 //o sistema de arquivos tenha sido registrado com sucesso.
 //Caso contrario, retorna -1
+static FSInfo fsInfo; // Tive que mudar aqui pra static e colocar fora da funcao pra nao perder o valor apos o retorno
 int installMyFS (void) {
-	FSInfo fsInfo;
+	//FSInfo fsInfo;
+    memset(&fsInfo, 0, sizeof(FSInfo));
 	fsInfo.fsid = 1;
 	fsInfo.fsname = "MyFS";
 	fsInfo.isidleFn = myFSIsIdle;
