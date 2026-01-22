@@ -1,7 +1,11 @@
 /*
 *  myfs.c - Implementacao do sistema de arquivos MyFS
 *
-*  Autores: SUPER_PROGRAMADORES_C
+*  Autores: 
+*   Marcos Vinícius Ferreira - 202365048AB
+*   Letícia Quintão Costa - 202365044AC
+*   Vinícius Oliveira de Matos Martins - 202565104A
+*   Giovana Maieli da Conceição Livramento - 202576042
 *  Projeto: Trabalho Pratico II - Sistemas Operacionais
 *  Organizacao: Universidade Federal de Juiz de Fora
 *  Departamento: Dep. Ciencia da Computacao
