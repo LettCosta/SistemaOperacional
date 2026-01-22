@@ -16,26 +16,23 @@
 #include "inode.h"
 #include "util.h"
 
-// Declarações de funções auxiliares privadas
 static int __saveSuperblock(Disk *d, Superblock *sb);
 static int __loadSuperblock(Disk *d, Superblock *sb);
 static unsigned int __findInodeInDir(Disk *d, unsigned int dirInodeNum, const char *filename);
 static int __addEntryToDir(Disk *d, unsigned int dirInodeNum, unsigned int fileInodeNum, const char *filename, Superblock *sb);
 
-//Declaracoes globais
 typedef struct {
-    int used; // 1 = em uso, 0 = livre
-    int isDir; // 1 = diretorio, 0 = arquivo
-    unsigned int inodeNumber; // numero do inode 
-    unsigned int cursor; // posicao do cursor, em bytes
-    Disk *d; // ponteiro para o disco associado
+    int used;
+    int isDir;
+    unsigned int inodeNumber;
+    unsigned int cursor;
+    Disk *d;
 } MyFSFileDescriptor; 
 
 static MyFSFileDescriptor fdTable[MAX_FDS];
 static unsigned int openCount = 0;
 static Superblock sb;
 
-// Implementação das funções auxiliares
 static int __saveSuperblock(Disk *d, Superblock *sb) {
     unsigned char sector[DISK_SECTORDATASIZE];
     memset(sector, 0, DISK_SECTORDATASIZE);
@@ -113,7 +110,6 @@ static unsigned int __findInodeInDir(Disk *d, unsigned int dirInodeNum, const ch
     unsigned int entrySize = sizeof(unsigned int) + MAX_FILENAME_LENGTH + 1;
     unsigned int numEntries = dirSize / entrySize;
     
-    // Usa o superbloco global
     unsigned int blockSize = sb.blockSize;
     
     for (unsigned int i = 0; i < numEntries; i++) {
@@ -128,7 +124,6 @@ static unsigned int __findInodeInDir(Disk *d, unsigned int dirInodeNum, const ch
             unsigned int blockAddr = inodeGetBlockAddr(dirInode, logicalBlockNum);
             if (blockAddr == 0) break;
             
-            // Calcula qual setor dentro do bloco
             unsigned int sectorInBlock = offsetInBlock / DISK_SECTORDATASIZE;
             unsigned int offsetInSector = offsetInBlock % DISK_SECTORDATASIZE;
             
@@ -312,7 +307,6 @@ int myFSFormat (Disk *d, unsigned int blockSize) {
     
     numBlocks = ((totalSectors - dataStartSector) * DISK_SECTORDATASIZE) / blockSize;
 
-    // Inicializa todos os inodes vazios com seus números corretos
     unsigned int inodesPerSector = DISK_SECTORDATASIZE / (16 * sizeof(unsigned int));
     unsigned long inodeAreaBegin = inodeAreaBeginSector();
     
@@ -320,17 +314,13 @@ int myFSFormat (Disk *d, unsigned int blockSize) {
         unsigned char sector[DISK_SECTORDATASIZE];
         memset(sector, 0, DISK_SECTORDATASIZE);
         
-        // Inicializar cada inode dentro deste setor
         for (unsigned int j = 0; j < inodesPerSector; j++) {
-            unsigned int inodeNum = sectorIdx * inodesPerSector + j + 1; // Inodes começam de 1
+            unsigned int inodeNum = sectorIdx * inodesPerSector + j + 1;
             if (inodeNum > MAX_INODES) break;
             
-            // Calcular offset deste inode no setor
             unsigned int offset = j * 16 * sizeof(unsigned int);
             
-            // Escrever o número do inode na posição correta (posição 14, ou seja INODE_SIZE-2)
             ul2char(inodeNum, &sector[offset + 14 * sizeof(unsigned int)]);
-            // Posição 15 (next) já é 0 pois memset zerou tudo
         }
         
         if (diskWriteSector(d, inodeAreaBegin + sectorIdx, sector) < 0) {
@@ -338,7 +328,6 @@ int myFSFormat (Disk *d, unsigned int blockSize) {
         }
     }
 
-    // Inicializa o bitmap com zeros
     unsigned char emptySector[DISK_SECTORDATASIZE];
     memset(emptySector, 0, DISK_SECTORDATASIZE);
     for (unsigned long i = 0; i < bitmapSectors; i++) {
